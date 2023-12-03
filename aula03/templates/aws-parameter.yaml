@@ -1,3 +1,4 @@
+template-file-path: ./aula03/templates/aws-vpc.yaml
 Parameters:
   EnvironmentName: "Demo"
   VpcCIDR: "10.192.0.0/16"

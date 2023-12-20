@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template para criar infraestrutura básica com VPC, Subnet, Internet Gateway, Route Table, Security Group e EC2 Instance.
+
+Resources:
+  MeuVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: MeuVPC
+
+  MinhaSubnetPublica:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MeuVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: MinhaSubnetPublica
+
+  MeuInternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MeuInternetGateway
+
+  VPCGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref MeuVPC
+      InternetGatewayId: !Ref MeuInternetGateway
+
+  MinhaRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref MeuVPC
+      Tags:
+        - Key: Name
+          Value: MinhaRouteTable
+
+  MinhaRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref MinhaRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MeuInternetGateway
+
+  SubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref MinhaSubnetPublica
+      RouteTableId: !Ref MinhaRouteTable
+
+  MeuSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Permitir acesso HTTP
+      VpcId: !Ref MeuVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+
+  MinhaInstanciaEC2:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: ami-0230bd60aa48260c6 
+      InstanceType: t2.micro
+      SecurityGroupIds:
+        - !Ref MeuSecurityGroup
+      SubnetId: !Ref MinhaSubnetPublica
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "Hello World from $(hostname -f)" > /var/www/html/index.html
+
+Outputs:
+  VPCId:
+    Description: ID do VPC criado
+    Value: !Ref MeuVPC
+  
+  SecurityGroupId:
+    Description: ID do Security Group criado
+    Value: !Ref MeuSecurityGroup
+
+  PublicSubnetId:
+    Description: ID da Subnet Pública criada
+    Value: !Ref MinhaSubnetPublica
+
+  PublicIpAddress:
+    Description: Endereço IP Público da Instância EC2
+    Value: !GetAtt MinhaInstanciaEC2.PublicIp
+
+  InstaceID:
+    Description: ID da Instância EC2
+    Value: !Ref MinhaInstanciaEC2
+
